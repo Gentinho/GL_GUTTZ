@@ -5,6 +5,43 @@
 
 'use strict';
 
+// 🔥 FIREBASE HELPERS
+
+async function fbGetGroups() {
+  const snap = await window.fb.getDocs(
+    window.fb.collection(window.db, "groups")
+  );
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+async function fbCreateGroup(data) {
+  await window.fb.addDoc(
+    window.fb.collection(window.db, "groups"),
+    data
+  );
+}
+
+async function fbFindGroupByCode(code) {
+  const q = window.fb.query(
+    window.fb.collection(window.db, "groups"),
+    window.fb.where("code", "==", code)
+  );
+
+  const snap = await window.fb.getDocs(q);
+
+  if (snap.empty) return null;
+
+  const docSnap = snap.docs[0];
+  return { id: docSnap.id, ...docSnap.data() };
+}
+
+async function fbUpdateGroup(id, data) {
+  await window.fb.updateDoc(
+    window.fb.doc(window.db, "groups", id),
+    data
+  );
+}
+
 // ─── LocalStorage Helpers ───────────────────────────
 const DB = {
   get: k => { try { return JSON.parse(localStorage.getItem('glcuttz_' + k)) } catch { return null } },
@@ -100,7 +137,7 @@ const App = {
     setTimeout(() => document.getElementById('join-name').focus(), 150);
   },
 
-  async doJoinGroup() {
+async doJoinGroup() {
   const name = document.getElementById('join-name').value.trim();
   const code = document.getElementById('join-code').value.trim().toUpperCase();
 
@@ -109,43 +146,31 @@ const App = {
     return;
   }
 
-  try {
-    const snapshot = await window.db
-      .collection("groups")
-      .where("code", "==", code)
-      .get();
+  const group = await fbFindGroupByCode(code);
 
-    if (snapshot.empty) {
-      show('join-error');
-      return;
-    }
-
-    const doc = snapshot.docs[0];
-    const group = doc.data();
-
-    if (!group.members.includes(name)) {
-      group.members.push(name);
-
-      await window.db.collection("groups")
-        .doc(doc.id)
-        .update({ members: group.members });
-    }
-
-    hide('modal-join');
-
-    State.mode = 'client';
-    State.clientName = name;
-    State.clientGroup = code;
-
-    document.getElementById('client-name-label').textContent = name;
-
-    showScreen('screen-client');
-    App.renderClientCal();
-
-  } catch (err) {
-    console.error(err);
-    toast('Fehler bei Firebase');
+  if (!group) {
+    show('join-error');
+    return;
   }
+
+  if (!group.members.includes(name)) {
+    group.members.push(name);
+
+    await fbUpdateGroup(group.id, {
+      members: group.members
+    });
+  }
+
+  hide('modal-join');
+
+  State.mode = 'client';
+  State.clientName = name;
+  State.clientGroup = code;
+
+  document.getElementById('client-name-label').textContent = name;
+
+  showScreen('screen-client');
+  App.renderClientCal();
 }
 
   logout() {
@@ -472,39 +497,40 @@ const App = {
 
   /* ── GROUPS TAB ───────────────────────────────── */
 
-  createGroup() {
-    const name = prompt('Gruppenname:');
-    if (!name) return;
-    const groups = getGroups();
-    const code   = genCode();
-    groups.push({ id: 'g' + Date.now(), name, code, members: [] });
-    saveGroups(groups);
-    App.renderGroups();
-    toast(`Gruppe "${name}" erstellt · Code: ${code}`);
-  },
+  async createGroup() {
+  const name = prompt('Gruppenname:');
+  if (!name) return;
 
-  renderGroups() {
-    const groups = getGroups();
-    const el     = document.getElementById('groups-list');
-    if (!groups.length) {
-      el.innerHTML = '<p class="empty-hint">Noch keine Gruppen. Erstelle eine, damit Kunden beitreten können.</p>';
-      return;
-    }
-    el.innerHTML = groups.map(g => `
-      <div class="group-card">
-        <div class="group-name">${g.name}</div>
-        <div class="group-code">${g.code}</div>
-        <div class="group-members">
-          👥 ${g.members.length} Mitglied${g.members.length !== 1 ? 'er' : ''}
-          ${g.members.length ? ': ' + g.members.join(', ') : ''}
-        </div>
-        <div class="group-hint">Diesen Code an deine Kunden weitergeben</div>
-        <div style="margin-top:.75rem;display:flex;gap:.5rem">
-          <button class="btn-secondary" style="font-size:.8rem;padding:.5rem .8rem" onclick="App.copyCode('${g.code}')">📋 Code kopieren</button>
-          <button class="btn-danger" onclick="App.deleteGroup('${g.id}')">Löschen</button>
-        </div>
-      </div>`).join('');
-  },
+  const code = genCode();
+
+  await fbCreateGroup({
+    name,
+    code,
+    members: []
+  });
+
+  toast("Gruppe erstellt ✅ Code: " + code);
+  App.renderGroups();
+}
+
+async renderGroups() {
+  const groups = await fbGetGroups();
+  const el = document.getElementById('groups-list');
+
+  if (!groups.length) {
+    el.innerHTML = '<p class="empty-hint">Keine Gruppen</p>';
+    return;
+  }
+
+  el.innerHTML = groups.map(g => `
+    <div class="group-card">
+      <div class="group-name">${g.name}</div>
+      <div class="group-code">${g.code}</div>
+      <div>👥 ${g.members.length} Mitglieder</div>
+    </div>
+  `).join('');
+}
+
 
   copyCode(code) {
     navigator.clipboard.writeText(code).catch(() => {});
