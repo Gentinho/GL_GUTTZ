@@ -100,29 +100,53 @@ const App = {
     setTimeout(() => document.getElementById('join-name').focus(), 150);
   },
 
-  doJoinGroup() {
-    const name = document.getElementById('join-name').value.trim();
-    const code = document.getElementById('join-code').value.trim().toUpperCase();
-    if (!name) { toast('Bitte Name eingeben'); return; }
-    const groups = getGroups();
-    const group = groups.find(g => g.code === code);
-    if (!group) {
+  async doJoinGroup() {
+  const name = document.getElementById('join-name').value.trim();
+  const code = document.getElementById('join-code').value.trim().toUpperCase();
+
+  if (!name) {
+    toast('Bitte Name eingeben');
+    return;
+  }
+
+  try {
+    const snapshot = await window.db
+      .collection("groups")
+      .where("code", "==", code)
+      .get();
+
+    if (snapshot.empty) {
       show('join-error');
       return;
     }
-    // Add member if not already there
+
+    const doc = snapshot.docs[0];
+    const group = doc.data();
+
     if (!group.members.includes(name)) {
       group.members.push(name);
-      saveGroups(groups);
+
+      await window.db.collection("groups")
+        .doc(doc.id)
+        .update({ members: group.members });
     }
+
     hide('modal-join');
+
     State.mode = 'client';
     State.clientName = name;
-    State.clientGroup = group.code;
+    State.clientGroup = code;
+
     document.getElementById('client-name-label').textContent = name;
+
     showScreen('screen-client');
     App.renderClientCal();
-  },
+
+  } catch (err) {
+    console.error(err);
+    toast('Fehler bei Firebase');
+  }
+}
 
   logout() {
     State.mode = null;
