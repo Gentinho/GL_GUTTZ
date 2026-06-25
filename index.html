@@ -289,6 +289,46 @@
   window.db = db; // wichtig!
 </script>
 
+<!-- Firebase -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import {
+    getFirestore,
+    collection,
+    getDocs,
+    addDoc,
+    updateDoc,
+    doc,
+    query,
+    where
+  } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCZJzmkQX82vx2pxZCu03amLrrpscOMXmE",
+    authDomain: "gl-cuttz.firebaseapp.com",
+    projectId: "gl-cuttz",
+    storageBucket: "gl-cuttz.firebasestorage.app",
+    messagingSenderId: "102225512964",
+    appId: "1:102225512964:web:d5a73a977a84e46b398351"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  // global verfügbar machen
+  window.db = db;
+  window.fb = {
+    collection,
+    getDocs,
+    addDoc,
+    updateDoc,
+    doc,
+    query,
+    where
+  };
+</script>
+
 <script src="app.js"></script>
 </body>
 </html>
+``
